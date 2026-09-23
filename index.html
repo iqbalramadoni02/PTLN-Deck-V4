@@ -4,7 +4,7 @@
   Bahasa tampilan: English. Bahasa komentar kode: Indonesia.
 
   ALAMAT WEB APP (Google Apps Script):
-  https://script.google.com/macros/s/AKfycbz1vGGAX3P0bXZ1Iqm8atjVMXuPl-eJYavHocHi_zECIKu3uimA_Nd8PFh7v5VcEqeKvA/exec
+  https://script.google.com/macros/s/AKfycbxtRGCo5jw2Jd53SN7tt6xl6daypToNgUVKuX-NZ_sB6_dEWsWR-k2jTyT8tr_CLUJA/exec
 
   Itulah tautan yang dibagikan ke siswa dan guru. Berkas ini TIDAK bisa
   dibuka dengan klik ganda — bukalah lewat alamat di atas.
@@ -241,6 +241,20 @@ select{cursor:pointer}
 .graf-kotak{border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;background:#FCFCFB;margin-bottom:12px;overflow-x:auto}
 .graf-kotak h3{margin:0 0 2px;font-size:14px}
 .graf-kotak .sub{color:var(--mute);font-size:12px;margin-bottom:6px}
+.bar-update{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#F7F8F5;border:1px solid var(--line);
+  border-radius:var(--r);padding:10px 12px;margin-bottom:14px}
+.bar-update .ket{flex:1;min-width:200px;font-size:12px;color:var(--ink-2);line-height:1.35}
+.bar-update .ket b{color:var(--ink)}
+.bar-update .titik{width:8px;height:8px;border-radius:50%;background:var(--sea);flex:0 0 auto}
+.bar-update .titik.baru{background:var(--alert);animation:denyut 1.4s ease-in-out infinite}
+.sync{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;z-index:90;display:flex;align-items:center;gap:12px;
+  background:var(--ink);color:#F2F4F1;border-radius:var(--r);padding:11px 14px;box-shadow:0 10px 30px rgba(19,34,58,.3);
+  font-size:13px;max-width:min(560px,92vw)}
+.sync .t{flex:1;line-height:1.35}
+.sync .t b{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);margin-bottom:2px}
+.sync button{white-space:nowrap}
+.sync .x2{background:none;border:0;color:#9FB0C4;font-size:18px;line-height:1;cursor:pointer;padding:0 2px}
+@media print{.sync{display:none}}
 .graf-2{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:12px}
 
 /* ---------- konsultasi ---------- */
@@ -425,7 +439,7 @@ var S = {
   guruList:[], targetKampus:[], targetBeasiswa:[], eksekutif:null,
   akun:[], aktivitas:[], peranLabel:{}, cariAkun:'', filterPeran:'',
   pengumuman:[], daftarKelas:[], anak:null, diperbarui:'', reset:[], lihatSandi:{},
-  psi:null, rumpun:[], kodeOrtu:'', refSidik:'', kelasOpsi:[],
+  psi:null, rumpun:[], kodeOrtu:'', refSidik:'', kelasOpsi:[], rev:'', revTerakhir:'', autoSync:true, timerHitung:null, waktuTarik:'',
   tab:'dash', dirty:false, saving:false, timer:null,
   filterKelas:'', cari:'', urut:'total', detail:null, detailDirty:false,
   semAktif:'s1', cariT:''
@@ -439,7 +453,7 @@ var KEY='deckptln_token_v1';
    aplikasi memakai google.script.run dan alamat ini diabaikan.
    Ganti bila membuat deployment baru.
    ------------------------------------------------------- */
-var API_URL='https://script.google.com/macros/s/AKfycbz1vGGAX3P0bXZ1Iqm8atjVMXuPl-eJYavHocHi_zECIKu3uimA_Nd8PFh7v5VcEqeKvA/exec';
+var API_URL='https://script.google.com/macros/s/AKfycbxtRGCo5jw2Jd53SN7tt6xl6daypToNgUVKuX-NZ_sB6_dEWsWR-k2jTyT8tr_CLUJA/exec';
 
 var PAKAI_GSR=(typeof google!=='undefined' && google && google.script && google.script.run);
 
@@ -578,6 +592,7 @@ function beritahu(judul,pesan,rahasia){
 }
 
 function sesiHabis(){
+  clearInterval(SYNC_TIMER);
   store(KEY,null); S.token=null;
   q('app').classList.add('hidden'); q('boot').classList.add('hidden');
   q('auth').classList.remove('hidden');
@@ -704,7 +719,7 @@ function doRegister(ev){
   return false;
 }
 function keluar(){
-  function pergi(){ call('logout',S.token).catch(function(){}); store(KEY,null); location.reload() }
+  function pergi(){ clearInterval(SYNC_TIMER); call('logout',S.token).catch(function(){}); store(KEY,null); location.reload() }
   if(S.dirty) tanya('You have unsaved changes. Sign out anyway?',pergi,'Sign out',true);
   else pergi();
 }
@@ -722,43 +737,55 @@ function mulai(){
       else{q('boot').classList.add('hidden');q('auth').classList.remove('hidden');authErr(r.error)}
       return;
     }
-    if(r.domainGuru && r.domainGuru.length) DOMAIN_GURU=r.domainGuru;
-    S.user=r.user; S.schema=r.schema; S.univ=r.univ||[]; S.bea=r.bea||[];
-    S.konsultasi=r.konsultasi||[];
-    S.skala=r.skala||[]; S.tahunAjaran=r.tahunAjaran||[]; S.statusValidasi=r.statusValidasi||[];
-    S.mapelBawaan=r.mapelBawaan||{X:[],XI:[]};
-    S.targetKampus=r.targetKampus||[]; S.targetBeasiswa=r.targetBeasiswa||[];
-    S.eksekutif=r.eksekutif||null; S.guruList=r.guru||[];
-    S.akun=r.akun||[]; S.aktivitas=r.aktivitas||[]; S.peranLabel=r.peranLabel||S.peranLabel;
-    S.pengumuman=r.pengumuman||[]; S.daftarKelas=r.daftarKelas||[];
-    S.anak=r.anak||null; S.diperbarui=r.diperbarui||'';
-    S.reset=r.reset||[];
-    S.psi=r.psi||null; S.rumpun=r.rumpun||S.rumpun; S.kodeOrtu=r.kodeOrtu||'';
-    if(r.kelasOpsi) S.kelasOpsi=r.kelasOpsi;
-    if(r.refSidik) S.refSidik=r.refSidik;
-    S.tabel={};
-    S.schema.sections.forEach(function(s){(s.tables||[]).forEach(function(t){S.tabel[t.k]=t})});
-    if(r.user.role==='siswa'){
-      S.deck=lengkapiDeck(r.deck); S.progres=r.progres;
-      S.rapor=r.rapor; S.kesiapan=r.kesiapan; S.tab='dash';
-    }else if(r.user.role==='ortu'){
-      S.deck=lengkapiDeck(r.deck); S.progres=r.progres;
-      S.rapor=r.rapor; S.kesiapan=r.kesiapan; S.tab='pantau';
-    }else if(r.user.role==='admin'){
-      S.ringkasan=r.ringkasan||[]; S.tab='akunkelola';
-    }else if(r.user.role==='guru'){
-      S.ringkasan=r.ringkasan||[]; S.tab='papan';
-    }else{
-      S.ringkasan=r.ringkasan||[]; S.tab='exec';
-    }
+    terapkanBootstrap(r,true);
     q('boot').classList.add('hidden');
     q('app').classList.remove('hidden');
+    mulaiSync();     // dijalankan sebelum render, agar tidak ikut gagal bila render bermasalah
     render();
   }).catch(function(e){
     q('boot').classList.add('hidden');
     q('auth').classList.remove('hidden');
     authErr(e.message);
   });
+}
+
+
+/* Menyalin balasan bootstrap ke keadaan aplikasi. Dipakai saat masuk
+   pertama kali dan setiap kali data ditarik ulang dari spreadsheet. */
+function terapkanBootstrap(r,awal){
+  if(r.domainGuru && r.domainGuru.length) DOMAIN_GURU=r.domainGuru;
+  S.user=r.user; S.schema=r.schema;
+  if(!r.refTetap){ S.univ=r.univ||[]; S.bea=r.bea||[] }
+  S.konsultasi=r.konsultasi||[];
+  S.skala=r.skala||[]; S.tahunAjaran=r.tahunAjaran||[]; S.statusValidasi=r.statusValidasi||[];
+  S.mapelBawaan=r.mapelBawaan||{X:[],XI:[]};
+  S.targetKampus=r.targetKampus||[]; S.targetBeasiswa=r.targetBeasiswa||[];
+  S.eksekutif=r.eksekutif||null; S.guruList=r.guru||[];
+  S.akun=r.akun||[]; S.aktivitas=r.aktivitas||[]; S.peranLabel=r.peranLabel||S.peranLabel;
+  S.pengumuman=r.pengumuman||[]; S.daftarKelas=r.daftarKelas||[];
+  S.anak=r.anak||null; S.diperbarui=r.diperbarui||'';
+  S.reset=r.reset||[];
+  S.psi=r.psi||null; S.rumpun=r.rumpun||S.rumpun; S.kodeOrtu=r.kodeOrtu||S.kodeOrtu;
+  if(r.kelasOpsi) S.kelasOpsi=r.kelasOpsi;
+  if(r.refSidik) S.refSidik=r.refSidik;
+  if(r.rev){ S.rev=r.rev; if(awal) S.revTerakhir=r.rev }
+  S.tabel={};
+  S.schema.sections.forEach(function(s){(s.tables||[]).forEach(function(t){S.tabel[t.k]=t})});
+  if(r.user.role==='siswa'||r.user.role==='ortu'){
+    S.deck=lengkapiDeck(r.deck); S.progres=r.progres;
+    S.rapor=r.rapor; S.kesiapan=r.kesiapan;
+    if(awal) S.tab=(r.user.role==='ortu')?'pantau':'dash';
+  }else{
+    S.ringkasan=r.ringkasan||[];
+    if(awal) S.tab=(r.user.role==='admin')?'akunkelola':(r.user.role==='guru')?'papan':'exec';
+  }
+  /* Halaman detail siswa yang sedang dibuka ikut disegarkan. */
+  if(!awal&&S.detail&&!S.detailDirty&&bimbing()){
+    call('deckSiswa',S.token,S.detail.siswa.id).then(function(x){
+      if(x&&x.ok){ x.deck=lengkapiDeck(x.deck); S.detail=x; S.psi=x.psi||S.psi; gambarView() }
+    }).catch(function(){});
+  }
+  if(!awal) render();
 }
 
 var SEM=['s1','s2','s3','s4','s5','s6'];
@@ -903,9 +930,18 @@ function hitungKesiapan(deck,p,rap){
    SIMPAN OTOMATIS
    ======================================================= */
 function ubah(){
-  S.dirty=true; S.progres=hitung();
-  S.rapor=hitungRapor(S.deck.rapor); S.kesiapan=hitungKesiapan(S.deck,S.progres,S.rapor);
-  gambarHeader(); tandaSimpan('dirty','Unsaved changes');
+  S.dirty=true;
+  tandaSimpan('dirty','Unsaved changes');
+  /* Perhitungan ulang dan penggambaran kepala halaman ditunda sebentar.
+     Saat mengetik cepat, pekerjaan itu hanya dikerjakan sekali di akhir,
+     bukan pada setiap huruf. */
+  clearTimeout(S.timerHitung);
+  S.timerHitung=setTimeout(function(){
+    S.progres=hitung();
+    S.rapor=hitungRapor(S.deck.rapor);
+    S.kesiapan=hitungKesiapan(S.deck,S.progres,S.rapor);
+    gambarHeader();
+  },250);
   clearTimeout(S.timer);
   S.timer=setTimeout(simpan,1200);
 }
@@ -915,6 +951,7 @@ function tandaSimpan(cls,txt){
 }
 function simpan(){
   if(!S.token||S.user.role!=='siswa')return;
+  clearTimeout(S.timerHitung);
   if(S.saving){clearTimeout(S.timer);S.timer=setTimeout(simpan,900);return}
   S.saving=true; tandaSimpan('busy','Saving…');
   call('simpanDeck',S.token,S.deck).then(function(r){
@@ -1097,10 +1134,57 @@ function gambarNav(){
 }
 
 function pindah(t){S.tab=t;gambarHeader();gambarNav();gambarView();window.scrollTo({top:0,behavior:'smooth'})}
-function setelahGambar(){ if(document.querySelector('.jam[data-tgl]')) mulaiJam(); }
+function setelahGambar(){
+  if(document.querySelector('.jam[data-tgl]')) mulaiJam();
+  gambarGrafikTertunda();
+}
 
+/* Grafik digambar setelah halaman sempat tampil, supaya perpindahan tab
+   terasa seketika walau grafiknya banyak. */
+function gambarGrafikTertunda(){
+  var kotak=document.querySelectorAll('[data-graf]');
+  if(!kotak.length) return;
+  var jalan=function(){
+    for(var i=0;i<kotak.length;i++){
+      var el=kotak[i], f=el.getAttribute('data-graf');
+      if(!f||el.getAttribute('data-siap')) continue;
+      try{ el.innerHTML=GRAFIK_TUNDA[f]?GRAFIK_TUNDA[f]():''; el.setAttribute('data-siap','1') }
+      catch(e){ el.innerHTML='<div class="empty">Chart unavailable.</div>' }
+    }
+  };
+  if(window.requestAnimationFrame) requestAnimationFrame(function(){setTimeout(jalan,0)});
+  else setTimeout(jalan,16);
+}
+var GRAFIK_TUNDA={};
+var GRAFIK_N=0;
+/* Mendaftarkan grafik agar digambar belakangan; mengembalikan wadah kosong. */
+function grafTunda(buat,tinggi){
+  var id='g'+(++GRAFIK_N);
+  GRAFIK_TUNDA[id]=buat;
+  return '<div data-graf="'+id+'" style="min-height:'+(tinggi||120)+'px"></div>';
+}
+
+/* Menggambar ulang panel tanpa membuat halaman melompat: posisi gulir,
+   kotak yang sedang diketik, dan posisi kursornya dikembalikan. */
 function gambarView(){
+  var v=q('view');
+  var gulir=window.pageYOffset;
+  var f=document.activeElement, jejak=null;
+  if(f&&v&&v.contains(f)&&(f.tagName==='INPUT'||f.tagName==='TEXTAREA'||f.tagName==='SELECT')){
+    var kotak=[].slice.call(v.querySelectorAll('input,textarea,select'));
+    jejak={i:kotak.indexOf(f),a:f.selectionStart,b:f.selectionEnd,scroll:v.scrollTop};
+  }
   gambarViewInti();
+  if(jejak&&jejak.i>=0){
+    var baru=v.querySelectorAll('input,textarea,select')[jejak.i];
+    if(baru){
+      try{ baru.focus({preventScroll:true});
+        if(jejak.a!=null&&baru.setSelectionRange&&baru.type!=='date'&&baru.tagName!=='SELECT')
+          baru.setSelectionRange(jejak.a,jejak.b);
+      }catch(e){}
+    }
+  }
+  if(Math.abs(window.pageYOffset-gulir)>2) window.scrollTo(0,gulir);
   setelahGambar();
 }
 function gambarViewInti(){
@@ -1851,6 +1935,7 @@ function barTarget(judul,sub,kolom,baris,unduh){
   var h='<div class="card"><h2>'+esc(judul)+'</h2><div class="sub">'+esc(sub)+'</div>'+
     '<div class="filters"><input type="search" placeholder="Search any column" value="'+esc(S.cariT)+'" oninput="S.cariT=this.value;gambarView()">'+
     '<button class="btn ghost sm" onclick="'+unduh+'">CSV</button>'+
+    '<button class="btn ghost sm" onclick="tarikSekarang()">Update</button>'+
     '<button class="btn ghost sm" onclick="cetakTabel(&quot;'+esc(judul)+'&quot;,'+JSON.stringify(kolom).replace(/"/g,'&quot;')+','+
     JSON.stringify(baris).replace(/"/g,'&quot;')+')">PDF</button>'+
     '<span class="eyebrow">'+baris.length+' row(s)</span></div>';
@@ -1941,7 +2026,7 @@ function viewEksekutif(){
 
   h+=blokDiagramSekolah();
   h+=blokTabelSekolah();
-  return h;
+  return barUpdate()+h;
 }
 
 
@@ -2340,29 +2425,29 @@ function blokDiagramSekolah(){
 
   h+='<div class="graf-2">';
   h+='<div class="graf-kotak"><h3>Students by progress band</h3><div class="sub">How far along the '+st.siswa.length+' students are.</div>'+
-    grafikDonat(st.pita,st.rata+'%','average')+'</div>';
+    grafTunda(function(){ return grafikDonat(st.pita,st.rata+'%','average') },250)+'</div>';
   h+='<div class="graf-kotak"><h3>Average progress per gate</h3><div class="sub">School-wide mean for each gate.</div>'+
-    grafikBatang(st.gerbang,{lebarLabel:180})+'</div>';
+    grafTunda(function(){ return grafikBatang(st.gerbang,{lebarLabel:180}) },200)+'</div>';
   h+='</div>';
 
   if(st.perKelas.length>1){
     h+='<div class="graf-kotak"><h3>Average progress by class</h3><div class="sub">Student count in brackets.</div>'+
-      grafikBatang(st.perKelas,{lebarLabel:170,warna:'#13223A'})+'</div>';
+      grafTunda(function(){ return grafikBatang(st.perKelas,{lebarLabel:170,warna:'#13223A'}) },200)+'</div>';
   }
   if(st.negara.length){
     h+='<div class="graf-2">';
     h+='<div class="graf-kotak"><h3>Destination countries</h3><div class="sub">Counted per target.</div>'+
-      grafikBatang(st.negara.slice(0,10),{lebarLabel:160})+'</div>';
+      grafTunda(function(){ return grafikBatang(st.negara.slice(0,10),{lebarLabel:160}) },200)+'</div>';
     h+='<div class="graf-kotak"><h3>Most chosen majors</h3><div class="sub">Across every university target.</div>'+
-      grafikBatang(st.jurusan.slice(0,10),{lebarLabel:200})+'</div>';
+      grafTunda(function(){ return grafikBatang(st.jurusan.slice(0,10),{lebarLabel:200}) },200)+'</div>';
     h+='</div>';
   }
   if(st.kampus.length||st.beasiswa.length){
     h+='<div class="graf-2">';
     if(st.kampus.length) h+='<div class="graf-kotak"><h3>Most chosen universities</h3>'+
-      grafikBatang(st.kampus.slice(0,10),{lebarLabel:230})+'</div>';
+      grafTunda(function(){ return grafikBatang(st.kampus.slice(0,10),{lebarLabel:230}) },200)+'</div>';
     if(st.beasiswa.length) h+='<div class="graf-kotak"><h3>Most chosen scholarships</h3>'+
-      grafikBatang(st.beasiswa.slice(0,10),{lebarLabel:230})+'</div>';
+      grafTunda(function(){ return grafikBatang(st.beasiswa.slice(0,10),{lebarLabel:230}) },200)+'</div>';
     h+='</div>';
   }
   return h+'</div>';
@@ -2520,10 +2605,10 @@ function blokGrafikSiswa(d,p,rap){
 
   /* progres per gerbang */
   h+='<div class="graf-kotak"><h3>Progress by gate</h3><div class="sub">Percentage complete for each gate.</div>'+
-    grafikBatang(S.schema.sections.map(function(sec){
+    grafTunda(function(){ return grafikBatang(S.schema.sections.map(function(sec){
       var v=p[sec.id]||0;
       return {l:sec.kode+' · '+sec.label,v:v,t:v+'%',warna:v>=80?'#0F6F6C':v>=40?'#A67C1A':'#B23A2B'};
-    }),{lebarLabel:180})+'</div>';
+    }),{lebarLabel:180}) },200)+'</div>';
 
   /* komposisi kesiapan */
   var selesai=0,jalan=0,belum=0;
@@ -2872,6 +2957,114 @@ function cetakPsi(){
       tabelCetak('',b.kepala,b.baris)+'</section>';
   });
   cetakPdf('psikometri-'+slug(nama),'Psychometric result',[nama,'Class '+(kelas||'—')],isi);
+}
+
+
+
+/* =======================================================
+   TOMBOL TARIK DATA — panel mentor, admin, kepala sekolah
+   ======================================================= */
+function barUpdate(){
+  var baru=(S.rev&&S.revTerakhir&&S.rev!==S.revTerakhir);
+  var waktu=S.waktuTarik?('Last pulled at '+esc(S.waktuTarik)):'Not pulled yet in this session';
+  return '<div class="bar-update">'+
+    '<span class="titik'+(baru?' baru':'')+'"></span>'+
+    '<div class="ket"><b>'+(baru?'The spreadsheet has changed since your last pull.':'Data is in step with the spreadsheet.')+'</b><br>'+
+    esc(waktu)+' · checks every 45 seconds by itself. Manual edits to TARGET KAMPUS, TARGET BEASISWA, VALIDASI, and names or classes in USERS are pulled into the student decks.</div>'+
+    '<button class="btn '+(baru?'gold':'sea')+' sm" id="btnTarik" onclick="tarikSekarang()">Update from spreadsheet</button>'+
+    '</div>';
+}
+
+function tarikSekarang(){
+  var b=q('btnTarik');
+  if(b){b.disabled=true;b.textContent='Pulling…'}
+  var n=0;
+  call('tarikManual',S.token).then(function(r){
+    if(r&&r.ok) n=r.diproses||0;
+    return call('bootstrap',S.token,S.refSidik||'');
+  }).then(function(r){
+    if(!r||!r.ok){
+      if(r&&r.error==='SESI_HABIS'){sesiHabis();return}
+      if(b){b.disabled=false;b.textContent='Update from spreadsheet'}
+      toast((r&&r.error)||'Could not pull the update.',true); return;
+    }
+    S.rev=r.rev||S.rev; S.revTerakhir=S.rev;
+    S.waktuTarik=new Date().toLocaleTimeString();
+    terapkanBootstrap(r);     // render terakhir, supaya bar update memuat waktu terbaru
+    toast(n? n+' student deck'+(n>1?'s':'')+' updated from the spreadsheet.' : 'Data refreshed — nothing had changed.');
+  }).catch(function(e){
+    if(b){b.disabled=false;b.textContent='Update from spreadsheet'}
+    tangani(e);
+  });
+}
+
+/* =======================================================
+   SINKRONISASI DENGAN SPREADSHEET
+   Setiap beberapa puluh detik aplikasi menanyakan satu hal
+   saja kepada server: apakah ada yang berubah? Panggilan itu
+   sangat ringan. Data baru baru ditarik bila memang ada.
+   ======================================================= */
+var SYNC_JEDA=45000, SYNC_TIMER=null, SYNC_SIBUK=false;
+
+function mulaiSync(){
+  clearInterval(SYNC_TIMER);
+  SYNC_TIMER=setInterval(cekRevisi,SYNC_JEDA);   // cekRevisi sendiri berhenti bila belum ada sesi
+  // Saat tab kembali dibuka, periksa segera — orang biasanya baru selesai menyunting.
+  if(!window.__SYNC_FOKUS__){
+    window.__SYNC_FOKUS__=true;
+    window.addEventListener('focus',function(){ if(S.token) cekRevisi() });
+    document.addEventListener('visibilitychange',function(){ if(!document.hidden&&S.token) cekRevisi() });
+  }
+}
+
+function cekRevisi(){
+  if(SYNC_SIBUK||!S.token) return;
+  SYNC_SIBUK=true;
+  call('revisi',S.token).then(function(r){
+    SYNC_SIBUK=false;
+    if(!r.ok) return;                       // diam saja; jangan ganggu pekerjaan
+    if(!S.rev){ S.rev=r.rev; return }
+    if(r.rev===S.rev) return;
+    S.rev=r.rev;
+    if(S.dirty||S.detailDirty){
+      spandukSync('Your deck has unsaved changes, so nothing was replaced. Save first, then pull the update.');
+    }else if(bimbing()||pimpinan()){
+      /* Panel mentor punya tombol sendiri; cukup nyalakan penanda di sana. */
+      gambarView();
+    }else if(S.autoSync){
+      tarikPerubahan(true);
+    }else{
+      spandukSync('');
+    }
+  }).catch(function(){ SYNC_SIBUK=false });
+}
+
+function spandukSync(catatan){
+  tutupSync();
+  var v=document.createElement('div');
+  v.className='sync'; v.id='spandukSync';
+  v.innerHTML='<div class="t"><b>Spreadsheet updated</b>'+
+    esc(catatan||'Someone edited the database. Pull the new data into this page?')+'</div>'+
+    '<button class="btn gold sm" onclick="tarikPerubahan(false)">Pull now</button>'+
+    '<button class="x2" title="Dismiss" onclick="tutupSync()">&times;</button>';
+  document.body.appendChild(v);
+}
+function tutupSync(){ var e=q('spandukSync'); if(e) e.remove() }
+
+function tarikPerubahan(diam){
+  tutupSync();
+  var b=document.querySelector('#spandukSync .btn');
+  if(b){b.disabled=true;b.textContent='Pulling…'}
+  /* Suntingan manual pada tab sumber ditarik ke deck lebih dulu,
+     baru datanya dimuat ulang. */
+  call('tarikManual',S.token).then(function(){
+    return call('bootstrap',S.token,S.refSidik||'');
+  }).then(function(r){
+    if(!r||!r.ok){ if(r&&r.error==='SESI_HABIS'){sesiHabis();return} toast((r&&r.error)||'Could not pull the update.',true); return }
+    terapkanBootstrap(r);
+    S.rev=r.rev||S.rev;
+    toast(diam?'Synced with the spreadsheet.':'Data pulled from the spreadsheet.');
+  }).catch(function(e){ tangani(e) });
 }
 
 /* =======================================================
@@ -4486,7 +4679,7 @@ function viewPapan(){
     return b.total-a.total;
   });
 
-  var h=blokDiagramSekolah()+blokTabelSekolah()+
+  var h=barUpdate()+blokDiagramSekolah()+blokTabelSekolah()+
     '<div class="card"><h2>Student progress board</h2>'+
     '<div class="sub">Click a row to open that student\'s full deck.</div>'+
     '<div class="filters">'+
@@ -4732,6 +4925,16 @@ function viewAkun(){
       '<button class="btn danger sm" onclick="gantiKode()">Issue a new code</button></div>'+
       '<div class="hint">Issuing a new code stops anyone who has the old one from registering. Parents already connected stay connected.</div></div>'+
       '</div></div>' : '')+
+    '<div class="card"><h2>Spreadsheet sync</h2>'+
+    '<div class="sub">This page checks the database every 45 seconds. When someone edits the spreadsheet by hand, the change is pulled in automatically — unless you have unsaved work, in which case you are asked first.</div>'+
+    '<div class="grid"><div class="f"><label>When the spreadsheet changes</label>'+
+    '<select onchange="S.autoSync=(this.value===\'auto\')">'+
+    '<option value="auto"'+(S.autoSync?' selected':'')+'>Pull the update automatically</option>'+
+    '<option value="tanya"'+(S.autoSync?'':' selected')+'>Ask me first</option></select>'+
+    '<div class="hint">Your own unsaved edits are never overwritten either way.</div></div>'+
+    '<div class="f"><label>&nbsp;</label><div class="pick">'+
+    '<button class="btn ghost sm" onclick="tarikPerubahan(false)">Pull from spreadsheet now</button></div>'+
+    '<div class="hint">Also runs when you switch back to this tab.</div></div></div></div>'+
     '<div class="card"><h2>Change password</h2><div class="sub">At least 6 characters.</div>'+
     '<div class="grid">'+
     '<div class="f"><label for="pwLama">Current password</label><input id="pwLama" type="password"></div>'+
