@@ -4,7 +4,7 @@
   Bahasa tampilan: English. Bahasa komentar kode: Indonesia.
 
   ALAMAT WEB APP (Google Apps Script):
-  https://script.google.com/macros/s/AKfycbxtRGCo5jw2Jd53SN7tt6xl6daypToNgUVKuX-NZ_sB6_dEWsWR-k2jTyT8tr_CLUJA/exec
+  https://script.google.com/macros/s/AKfycbyLBCqhBqmSXm37JEwugVXtxfIzd0cf8hf7u1KFBdSKmHO28RrYbGkL4l9KdigKjY05/exec
 
   Itulah tautan yang dibagikan ke siswa dan guru. Berkas ini TIDAK bisa
   dibuka dengan klik ganda — bukalah lewat alamat di atas.
@@ -439,7 +439,7 @@ var S = {
   guruList:[], targetKampus:[], targetBeasiswa:[], eksekutif:null,
   akun:[], aktivitas:[], peranLabel:{}, cariAkun:'', filterPeran:'',
   pengumuman:[], daftarKelas:[], anak:null, diperbarui:'', reset:[], lihatSandi:{},
-  psi:null, rumpun:[], kodeOrtu:'', refSidik:'', kelasOpsi:[], rev:'', revTerakhir:'', autoSync:true, timerHitung:null, waktuTarik:'',
+  psi:null, rumpun:[], kodeOrtu:'', refSidik:'', kelasOpsi:[], rev:'', revTerakhir:'', autoSync:true, kurikulum:null, timerHitung:null, waktuTarik:'',
   tab:'dash', dirty:false, saving:false, timer:null,
   filterKelas:'', cari:'', urut:'total', detail:null, detailDirty:false,
   semAktif:'s1', cariT:''
@@ -767,6 +767,7 @@ function terapkanBootstrap(r,awal){
   S.reset=r.reset||[];
   S.psi=r.psi||null; S.rumpun=r.rumpun||S.rumpun; S.kodeOrtu=r.kodeOrtu||S.kodeOrtu;
   if(r.kelasOpsi) S.kelasOpsi=r.kelasOpsi;
+  if(r.kurikulum) S.kurikulum=r.kurikulum;
   if(r.refSidik) S.refSidik=r.refSidik;
   if(r.rev){ S.rev=r.rev; if(awal) S.revTerakhir=r.rev }
   S.tabel={};
@@ -1787,6 +1788,28 @@ function viewRapor(deck,ro){
   });
   h+='</div>';
 
+  /* --- pilihan jurusan: menentukan susunan mapel semester 3–6 --- */
+  var jur=(deck.rapor.jurusan)||{xi:'',xii:''};
+  var K=S.kurikulum||{jurusanXI:[],jurusanXII:[],label:{},isi:{}};
+  h+='<div class="tb-head" style="margin-top:20px"><h3>Stream and track</h3>'+
+     '<div class="sub">The transcript follows the school curriculum: semesters I–II are the same for everyone, '+
+     'semesters III–IV follow the Grade XI stream, and semesters V–VI follow the Grade XII track. '+
+     'Choosing one fills in its own subject list and credit weights.</div></div><div class="grid">';
+  h+='<div class="f"><label>Grade XI stream (Semester III &amp; IV)</label><select'+(ro?' disabled':'')+
+     ' onchange="setJurusan(\'xi\',this.value)"><option value="">— not chosen yet —</option>';
+  (K.jurusanXI||[]).forEach(function(j){
+    h+='<option value="'+esc(j)+'"'+(jur.xi===j?' selected':'')+'>'+esc(K.label[j]||j)+'</option>'});
+  h+='</select><div class="hint">'+(jur.xi
+     ? esc((K.isi[jur.xi]||[]).length+' subjects · '+(K.isi[jur.xi]||[]).reduce(function(a,b){return a+b.sks},0)+' credits per semester')
+     : 'Semesters III and IV stay empty until a stream is chosen.')+'</div></div>';
+  h+='<div class="f"><label>Grade XII track (Semester V &amp; VI)</label><select'+(ro?' disabled':'')+
+     ' onchange="setJurusan(\'xii\',this.value)"><option value="">— not chosen yet —</option>';
+  (K.jurusanXII||[]).forEach(function(j){
+    h+='<option value="'+esc(j)+'"'+(jur.xii===j?' selected':'')+'>'+esc(K.label[j]||j)+'</option>'});
+  h+='</select><div class="hint">'+(jur.xii
+     ? esc((K.isi[jur.xii]||[]).length+' subjects · '+(K.isi[jur.xii]||[]).reduce(function(a,b){return a+b.sks},0)+' credits per semester')
+     : 'Semesters V and VI stay empty until a track is chosen.')+'</div></div></div>';
+
   h+='<div class="tb-head" style="margin-top:20px"><h3>Cumulative summary</h3><div class="sub">Recalculated as you type.</div></div><div class="dash">';
   h+='<div id="ringkasGpa" style="display:contents">';
   h+=tile('Cumulative GPA',rap.gpa===null?'—':rap.gpa.toFixed(2),'on a 4.00 scale',rap.predikat?[esc(rap.predikat)]:['—']);
@@ -1814,14 +1837,25 @@ function viewRapor(deck,ro){
   });
   h+='</div>';
   var k=S.semAktif, rows=deck.rapor.sem[k]||[], sum=rap.sem[k];
-  h+='<div class="tb-head"><h3>'+esc(SEM_LABEL[k])+(t[SEM_GRADE[k]]?' · '+esc(t[SEM_GRADE[k]]):'')+'</h3>'+
-     '<div class="sub">Enter the report mark out of 100 and the credit weight. Grade, grade point, and score are worked out for you.</div></div>';
+  var jurSem=(k==='s1'||k==='s2')?'X':((k==='s3'||k==='s4')?jur.xi:jur.xii);
+  h+='<div class="tb-head"><h3>'+esc(SEM_LABEL[k])+(t[SEM_GRADE[k]]?' · '+esc(t[SEM_GRADE[k]]):'')+
+     (jurSem?' — '+esc(K.label[jurSem]||jurSem):'')+'</h3>'+
+     '<div class="sub">'+(jurSem
+       ? 'Subjects and credits come from the school curriculum for this stream. Enter the report mark out of 100; grade, grade point, and score are worked out for you.'
+       : 'Choose the '+(k==='s3'||k==='s4'?'Grade XI stream':'Grade XII track')+' above and the subject list appears here automatically.')+
+     '</div></div>';
   h+='<div class="tb"><div class="tb-h" style="grid-template-columns:2.6fr 1fr .8fr 1fr .9fr .9fr 34px">'+
      '<div>Subject name</div><div>Report (0–100)</div><div>Grade</div><div>Grade point</div><div>Credits</div><div>Score</div><div></div></div>';
   if(!rows.length) h+='<div class="tb-r" style="grid-template-columns:1fr"><div class="muted" style="padding:12px">No subjects yet.</div></div>';
+  var grupTerakhir='';
   rows.forEach(function(r,i){
     var sk=skalaDari(r.nilai), c=parseFloat(r.sks)||0;
     var cls=sk?(sk.p>=3.5?'s2':sk.p>=2.5?'s1':'s0'):'';
+    if(r.grup&&r.grup!==grupTerakhir){
+      grupTerakhir=r.grup;
+      h+='<div class="tb-r" style="grid-template-columns:1fr;background:#F0F2ED">'+
+         '<div class="eyebrow" style="padding:6px 8px">'+esc(r.grup)+'</div></div>';
+    }
     h+='<div class="tb-r '+cls+'" id="rr_'+k+'_'+i+'" style="grid-template-columns:2.6fr 1fr .8fr 1fr .9fr .9fr 34px">'+
        '<div data-l="Subject name"><input type="text" value="'+esc(r.mapel||'')+'"'+(ro?' disabled':'')+' placeholder="Subject" oninput="setRapor(\''+k+'\','+i+',\'mapel\',this.value)"></div>'+
        '<div data-l="Report" class="mono"><input type="number" min="0" max="100" value="'+esc(r.nilai===''||r.nilai==null?'':r.nilai)+'"'+(ro?' disabled':'')+' placeholder="0–100" oninput="setRapor(\''+k+'\','+i+',\'nilai\',this.value)"></div>'+
@@ -1868,6 +1902,43 @@ function ubahRapor(){
   if(bimbing()){ S.detailDirty=true; gambarView(); return }
   ubah(); gambarView();
 }
+
+/* Mengganti peminatan/jalur: susunan mapel semester terkait ditata ulang
+   mengikuti kurikulum jurusan itu, nilai yang sudah diisi dipertahankan. */
+function setJurusan(tingkat,nilai){
+  var d=targetDeck();
+  d.rapor.jurusan=d.rapor.jurusan||{xi:'',xii:''};
+  d.rapor.jurusan[tingkat]=nilai;
+  (tingkat==='xi'?['s3','s4']:['s5','s6']).forEach(function(sm){
+    d.rapor.sem[sm]=selaraskanSemesterKlien(d.rapor,sm);
+  });
+  if(bimbing()){ S.detailDirty=true; tandaKoreksi() } else { ubah() }
+  gambarView();
+}
+
+/* Cermin selaraskanSemester_ di Code.gs, supaya tabelnya berubah seketika. */
+function selaraskanSemesterKlien(rapor,sem){
+  var K=S.kurikulum||{isi:{}};
+  var j=(sem==='s1'||sem==='s2')?'X':((sem==='s3'||sem==='s4')?(rapor.jurusan||{}).xi:(rapor.jurusan||{}).xii);
+  var baku=(K.isi||{})[j]||[];
+  var lama=rapor.sem[sem]||[];
+  if(!baku.length) return lama.filter(function(r){return r.nilai!==''&&r.nilai!=null});
+  var pakai={};
+  var hasil=baku.map(function(b){
+    var cocok=null;
+    for(var i=0;i<lama.length;i++){
+      if(pakai[i]) continue;
+      if(String(lama[i].mapel||'').toLowerCase()===String(b.mapel).toLowerCase()){cocok=lama[i];pakai[i]=1;break}
+    }
+    return {mapel:b.mapel,sks:b.sks,grup:b.grup,nilai:cocok&&cocok.nilai!==undefined?cocok.nilai:''};
+  });
+  lama.forEach(function(r,i){
+    if(pakai[i]) return;
+    if(r.nilai!==''&&r.nilai!=null&&sv(r.mapel)) hasil.push({mapel:r.mapel,sks:r.sks,nilai:r.nilai,grup:'Additional'});
+  });
+  return hasil;
+}
+
 function setTahunAjaran(k,v){ targetDeck().rapor.tahun[k]=v; ubahRapor() }
 function setRapor(sem,i,f,v){
   targetDeck().rapor.sem[sem][i][f]=v;
@@ -2359,22 +2430,27 @@ function cetakLaporan(){
 /* ---------- transkrip PDF ---------- */
 function cetakTranskrip(){
   var d=targetDeck(), rap=hitungRapor(d.rapor), t=d.rapor.tahun||{};
+  var jr=(d.rapor.jurusan)||{}, KL=(S.kurikulum||{}).label||{};
   var isi='<section>'+
     kartuCetak2('Cumulative GPA',rap.gpa===null?'—':rap.gpa.toFixed(2),'4.00 scale')+
     kartuCetak2('Total credits',rap.totalSks,'')+
-    kartuCetak2('Standing',rap.predikat||'—','')+'</section>';
+    kartuCetak2('Standing',rap.predikat||'—','')+
+    (jr.xi?kartuCetak2('Grade XI stream',KL[jr.xi]||jr.xi,''):'')+
+    (jr.xii?kartuCetak2('Grade XII track',KL[jr.xii]||jr.xii,''):'')+'</section>';
   var tg=[],lb=[];
   SEM.forEach(function(k){ var g=rap.sem[k]; if(g&&g.gpa!==null){tg.push({y:g.gpa});lb.push(SEM_LABEL[k])} });
   if(tg.length>=2) isi+='<section><h2>GPA by semester</h2>'+
     grafikGaris([{nama:'Semester GPA',titik:tg,warna:'#A67C1A'}],{label:lb,min:0,maks:4})+'</section>';
   SEM.forEach(function(k,i){
     var rows=(d.rapor.sem||{})[k]||[], sum=rap.sem[k];
+    var js=(k==='s1'||k==='s2')?'X':((k==='s3'||k==='s4')?jr.xi:jr.xii);
     isi+='<section'+(i===3?' class="pecah"':'')+'>'+tabelCetak(
-      SEM_LABEL[k]+(t[SEM_GRADE[k]]?' — '+t[SEM_GRADE[k]]:'')+(sum.gpa===null?'':' · GPA '+sum.gpa.toFixed(2)),
-      ['Subject name','Report','Grade','Grade point','Credits','Score'],
+      SEM_LABEL[k]+(t[SEM_GRADE[k]]?' — '+t[SEM_GRADE[k]]:'')+(js?' — '+(KL[js]||js):'')+
+        (sum.gpa===null?'':' · GPA '+sum.gpa.toFixed(2)),
+      ['Group','Subject name','Report','Grade','Grade point','Credits','Score'],
       rows.map(function(r){
         var sk=skalaDari(r.nilai), c=parseFloat(r.sks)||0;
-        return [r.mapel,r.nilai,sk?sk.g:'',sk?sk.p:'',r.sks,sk?+(sk.p*c).toFixed(2):'']}),[1,3,4,5])+'</section>';
+        return [r.grup||'',r.mapel,r.nilai,sk?sk.g:'',sk?sk.p:'',r.sks,sk?+(sk.p*c).toFixed(2):'']}),[2,4,5,6])+'</section>';
   });
   cetakPdf('transkrip-'+slug(namaSubjek()),'Academic transcript',[namaSubjek(),'Class '+(kelasSubjek()||'—')],isi);
 }
@@ -3414,8 +3490,12 @@ function slug(t){ return String(t||'siswa').trim().replace(/[^A-Za-z0-9]+/g,'-')
 /* ---------- bagian transkrip ---------- */
 function bagianTranskrip(deck,nama,kelas){
   var rap=hitungRapor(deck.rapor), t=deck.rapor.tahun||{}, bag=[];
+  var jr=(deck.rapor.jurusan)||{};
+  var KL=(S.kurikulum||{}).label||{};
   bag.push({judul:'ACADEMIC TRANSCRIPT — '+(nama||''),kepala:['Field','Value'],baris:[
     ['Student',nama||''],['Class',kelas||''],
+    ['Grade XI stream',jr.xi?(KL[jr.xi]||jr.xi):'—'],
+    ['Grade XII track',jr.xii?(KL[jr.xii]||jr.xii):'—'],
     ['Grade 10',t.g10||'—'],['Grade 11',t.g11||'—'],['Grade 12',t.g12||'—'],
     ['Cumulative GPA',rap.gpa===null?'':rap.gpa],['Total credits',rap.totalSks],
     ['Quality points',rap.totalSkor],['Academic standing',rap.predikat||'']
@@ -3428,8 +3508,10 @@ function bagianTranskrip(deck,nama,kelas){
     });
     b.push(['TOTAL','','','',sum.sks,+sum.skor.toFixed(2)]);
     b.push(['SEMESTER GPA','','','','',sum.gpa===null?'':sum.gpa]);
-    bag.push({judul:SEM_LABEL[k]+(t[SEM_GRADE[k]]?' — '+t[SEM_GRADE[k]]:''),
-      kepala:['Subject name','Report (0–100)','Grade','Grade point','Credits','Score'],baris:b});
+    var js=(k==='s1'||k==='s2')?'X':((k==='s3'||k==='s4')?jr.xi:jr.xii);
+    bag.push({judul:SEM_LABEL[k]+(t[SEM_GRADE[k]]?' — '+t[SEM_GRADE[k]]:'')+(js?' — '+(KL[js]||js):''),
+      kepala:['Group','Subject name','Report (0–100)','Grade','Grade point','Credits','Score'],
+      baris:b.map(function(x,i){return [(rows[i]||{}).grup||'',x[0],x[1],x[2],x[3],x[4],x[5]]})});
   });
   bag.push({judul:'GRADE SCALE',kepala:['Minimum mark','Grade','Grade point'],
     baris:S.skala.map(function(x){return [x.min<0?0:x.min,x.g,x.p]})});
